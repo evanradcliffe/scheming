@@ -1,4 +1,5 @@
 module Main where
+import System.Environment
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
 
@@ -74,12 +75,45 @@ parseExpr = parseAtom
     <|> parseQuoted
     <|> parseParensList
 
-readExpr :: String -> String
+eval :: LispVal -> LispVal
+eval value@(String _)             = value
+eval value@(Number _)             = value
+eval (List [Atom "quote", value]) = value
+eval (List (Atom f : args))       = apply f $ map eval args
+
+apply :: String -> [LispVal] -> LispVal
+apply f args = maybe (Bool False) ($ args) $ lookup f primitives
+
+primitives :: [(String, [LispVal] -> LispVal)]
+primitives = [("+", numericBinop (+)),
+              ("-", numericBinop (-)),
+              ("*", numericBinop (*)),
+              ("/", numericBinop (div))]
+
+numericBinop :: (Integer -> Integer -> Integer) -> [LispVal] -> LispVal
+numericBinop op params = Number $ foldl1 op $ map unpackNum params
+
+unpackNum :: LispVal -> Integer
+unpackNum (Number n) = n
+unpackNum (String s) = let parsed = reads s :: [(Integer, String)] in
+    if null parsed
+        then 0
+        else fst $ parsed !! 0
+unpackNum (List [n]) = unpackNum n
+unpackNum _          = 0
+
+readExpr :: String -> LispVal
 readExpr input = case parse parseExpr "lisp" input of
-    Left err -> "Error parsing expression: " ++ show err
-    Right value -> "Found value: " ++ stringifyLispVal value
+    Left err -> String $ "Error parsing expression: " ++ show err
+    Right value -> value
 
 main :: IO ()
 main = do
-    arg <- getLine
-    putStrLn $ readExpr arg
+    args <- getArgs
+    expr <- if null args
+        then do
+            putStr "> "
+            getLine
+        else
+            liftM head getArgs
+    putStrLn (stringifyLispVal (eval (readExpr expr))) -- TODO: make this pretty
