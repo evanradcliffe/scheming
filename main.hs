@@ -35,10 +35,34 @@ parseAtom = do
 parseNumber :: Parser LispVal
 parseNumber = liftM (Number . read) $ many1 digit
 
+parseList :: Parser LispVal
+parseList = liftM List $ sepBy parseExpr spaces
+
+parseDottedList :: Parser LispVal
+parseDottedList = do
+    head <- endBy parseExpr spaces
+    tail <- char '.' >> spaces >> parseExpr
+    return $ DottedList head tail
+
+parseParensList :: Parser LispVal
+parseParensList = do
+    char '('
+    x <- try parseList <|> parseDottedList
+    char ')'
+    return x
+
+parseQuoted :: Parser LispVal
+parseQuoted = do
+    char '\''
+    exp <- parseExpr
+    return $ List [Atom "quote", exp]
+
 parseExpr :: Parser LispVal
 parseExpr = parseAtom
     <|> parseString
     <|> parseNumber
+    <|> parseQuoted
+    <|> parseParensList
 
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of
