@@ -9,6 +9,8 @@ data LispVal = Atom String
     | String String
     | Bool Bool
 
+instance Show LispVal where show = stringifyLispVal
+
 symbol :: Parser Char
 symbol = oneOf "!#$%&|*+-/:<=>?@^_~"
 
@@ -57,6 +59,14 @@ parseQuoted = do
     exp <- parseExpr
     return $ List [Atom "quote", exp]
 
+stringifyLispVal :: LispVal -> String
+stringifyLispVal (Bool True)    = "#t"
+stringifyLispVal (Bool False)   = "#f"
+stringifyLispVal (String value) = value
+stringifyLispVal (Number value) = show value
+stringifyLispVal (Atom value)   = value
+stringifyLispVal (List list)    = "(" ++ (unwords . map stringifyLispVal) list ++ ")"
+
 parseExpr :: Parser LispVal
 parseExpr = parseAtom
     <|> parseString
@@ -67,7 +77,7 @@ parseExpr = parseAtom
 readExpr :: String -> String
 readExpr input = case parse parseExpr "lisp" input of
     Left err -> "Error parsing expression: " ++ show err
-    Right value -> "Found value"
+    Right value -> "Found value: " ++ stringifyLispVal value
 
 main :: IO ()
 main = do
